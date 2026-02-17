@@ -28,7 +28,15 @@ def load_rag():
 
 def ask_question(question, llm, db):
 
-    docs = db.similarity_search(question, k=5)
+    results = db.similarity_search_with_score(question, k=5)
+
+    docs = []
+    threshold = 1.2
+
+    for doc, score in results:
+        if score < threshold:
+            docs.append(doc)
+        print(f"Score: {score}, Source: {doc.metadata.get('source')}")
 
     if not docs:
         return "No relevant information found in the database."
@@ -38,11 +46,18 @@ def ask_question(question, llm, db):
     sources = list(set([doc.metadata.get("source", "unknown") for doc in docs]))
 
     prompt= f"""
-Use the following context to answer the question.
+You are a technical assistant.
 
-Context: {context}
+Use ONLY the provided context to answer the question.
 
-Question: {question}
+-Base your answer strictly on the context.
+-You may summarize or restate information found in the context 
+-Do NOT introduce external knowledge 
+-If no relevant information found in the context, respond:
+ "No relevant information found in the database.
+Provided Context: {context}
+
+User Question: {question}
 
 Answer: 
 """

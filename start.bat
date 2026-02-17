@@ -1,6 +1,7 @@
 @echo off
-start "" /min ollama serve
-timeout /t 4>nul
-start "" dist\main.exe
-timeout /t 3>nul
-start http://127.0.0.1:8000
+title Offline RAG Assistant
+
+call venv\Scripts\activate
+start "" ollama serve
+timeout /t 3 > nul
+python app\main.py

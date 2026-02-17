@@ -15,32 +15,39 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
-llm, db = load_rag()
+llm = None 
+db = None 
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    files = os.listdir("uploads")
+    return templates.TemplateResponse("index.html", {"request": request, "files": files})
 
 @app.post("/ask")
 async def ask(request: Request):
-    try:     
-        data = await request.json()
-        question = data.get("question")
+    llm, db = get_rag()
 
-        if not question:
-            return {"answer": "No question provided."}
+    data = await request.json()
+    question = data.get("question")
+
+    if not question:
+        return {"answer": "No question provided."}
     
-        answer = ask_question(question, llm, db)
-        return {"answer": answer}
-    
-    except Exception as e:
-        return {"answer": f"Error: {str(e)}"}
+    answer = ask_question(question, llm, db)
+    return {"answer": answer}
+
+@app.get("/files")
+async def list_files():
+    files = os.listdir("uploads")
+    return {"files": files}
 
 @app.post("/upload")
 async def upload(files: list[UploadFile] = File(...)):
+    llm, db = get_rag()
+
     for file in files: 
         file_path = os.path.join(UPLOAD_FOLDER, file.filename)
 
@@ -53,6 +60,9 @@ async def upload(files: list[UploadFile] = File(...)):
 
 @app.post("/delete")
 async def delete_file(request: Request):
+
+    llm, db = get_rag()
+
     data = await request.json()
     filename = data.get("filename")
 
@@ -73,6 +83,12 @@ async def delete_file(request: Request):
 
 def open_browser():
     webbrowser.open("http://localhost:8000")
+
+def get_rag():
+    global llm, db
+    if llm is None or db is None:
+        llm, db = load_rag()
+    return llm, db
 
 if __name__ == "__main__":
     threading.Timer(1.5, open_browser).start()

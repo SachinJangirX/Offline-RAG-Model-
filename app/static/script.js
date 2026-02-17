@@ -51,42 +51,101 @@ async function uploadFile() {
         formData.append("files", fileInput.files[i]);
     }
 
-    await fetch("/upload", {
-        method: "POST",
-        body: formData,
-    });
+    try {
+        const response = await fetch("/upload", {
+            method: "POST",
+            body: formData,
+        });
 
-    alert(files.length + " Document(s) Indexed successfully!");
+        await response.json();
+
+        alert("Files uploaded successfully!");
+
+        fileInput.value = "";
+
+        loadFiles();
+    } catch (error) {
+        console.error("Upload error:", error);
+        alert("Error uploading files!");
+    }
+    
 }
 
 async function deleteFile() {
 
-    const filename = document.getElementById("deleteFileName").value;
+    const input = document.getElementById("deleteFileName");
+    const filename = input.value.trim();
 
-    if(!filename){
-        alert("Please enter the filename to delete!!!");
+    if(!filename) {
+        alert("Please enter a filename to delete!");
         return;
     }
 
-    const response = await fetch("/delete", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ filename: filename })
-    });
+    try {
+        const response = await fetch("/delete", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ filename: filename }),
+        });
 
-    const data = await response.json();
+        const data = await response.json();
 
-    alert(data.message);
+        alert(data.message);
+
+        input.value = "";
+        input.placeholder = "Enter exact file name ...";
+
+        loadFiles();
+    } catch (error) {
+        console.error("Error deleting file:", error);
+    }
+}
+
+async function loadFiles() {
+    try {
+        const response = await fetch("/files");
+
+        if(!response.ok){
+            console.error("Failed to fetch files");
+            return;
+        }
+
+        const data = await response.json();
+
+        const fileList = document.getElementById("fileList");
+
+        if (!fileList) {
+            console.error("File list div not found");
+            return;
+        }
+
+        fileList.innerHTML = "";
+
+        if(!data.files || data.files.length === 0){
+            fileList.innerHTML = "<div class='no-files'>No files uploaded</div>";
+            return;
+        }
+
+        data.files.forEach(file => {
+            const div = document.createElement("div");
+            div.className = "file-item";
+            div.textContent = file;
+            fileList.appendChild(div);
+        });
+    } catch (error) {
+        console.error("Error loading files:", error);
+    }
 }
 
 document.addEventListener("DOMContentLoaded", function () {
+
+    loadFiles();
 
     const deleteBtn = document.getElementById("deleteBtn");
 
     if(deleteBtn){
         deleteBtn.addEventListener("click", deleteFile);
     }
-
 });

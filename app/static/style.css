@@ -167,3 +167,32 @@ body {
 .input-area button:hover {
     background: #1d4ed8;
 }
+
+.file-display {
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 8px;
+    background: #f9fafb;
+}
+
+.file-item {
+    padding: 6px 8px;
+    font-size: 13px;
+    border-bottom: 1px solid #e5e7eb;
+    color: #374151;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-item:last-child {
+    border-bottom: none;
+}
+
+.no-files {
+    font-size: 13px;
+    color: #9ca3af;
+    text-align: center;
+}
