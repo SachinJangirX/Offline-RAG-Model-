@@ -3,45 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OFFLINE RAG ASSISTANT</title>
+    <title>Offline RAG Assistant</title>
+
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    
-    <!-- Top nevigation bar -->
-     <div class="navbar">
-        <div class="nav-title">Offline RAG Assistant</div>
-        <div class="nav-icons">
-            <span>☰</span>
-            <span>...</span>
+
+    <div class="app">
+        <header class="topbar">
+            <div class="logo">Offline RAG Assistant</div>
+            <div class="badge">Local Mode</div>
+        </header>
+
+        <div class="main">
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3>Upload Documents</h3>
+                    <input type="file" id="fileInput" multiple />
+                    <button class="primary-btn" onclick="uploadFile()">Upload PDF</button>
+                </div>  
+
+                <div class="sidebar-section">
+                    <h3>Delete Document</h3>
+                    <input type="text" id="deleteFileName" placeholder="Exact file name" />
+                    <button id="deleteBtn" class="danger-btn">Delete</button>
+                </div>
+            </aside>    
+
+            <section class="chat-section">
+                <div id="chat" class="chat-box"></div>
+
+                <div class="input-area">
+                    <input type="text" id="question" placeholder="Ask your question ...." />
+                    <button onclick="sendQuestion()">Send</button>
+                </div>
+            </section>
         </div>
-     </div>
-
-     <!-- Main container -->
-      <div class="container">
-
-        <div id="chat" class="chat-box"></div>
-
-        <div class="input-section">
-            <input type="text" id="question" placeholder="Ask something ..." />
-            <button onclick="sendQuestion()">Send</button>
-        </div>
-
-        <!-- divider -->
-         <hr>
-
-         <!-- upload section -->
-          <div class="upload-section">
-            <input type="file" id="fileInput" multiple />
-            <button onclick="uploadFile()">Upload PDF</button>
-          </div>
-
-        <!-- delete section  -->
-         <div class="delete-section">
-            <input type="text" id="deleteFileName" placeholder="Enter exact file name to delete" />
-            <button id="deleteBtn">Delete from DB</button>
-         </div>
-
-      </div>
+    </div>
 <script src="/static/script.js"></script>
+    
 </body>
 </html>
