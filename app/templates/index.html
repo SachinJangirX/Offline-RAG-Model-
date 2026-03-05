@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Offline RAG Assistant</title>
-
     <link rel="stylesheet" href="/static/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -21,34 +19,47 @@
                 <div class="sidebar-section">
                     <h3>Upload Documents</h3>
                     <input type="file" id="fileInput" multiple />
-                    <button class="primary-btn" onclick="uploadFile()">Upload PDF</button>
-                </div>  
+                    <button id="uploadBtn" class="primary-btn" onclick="uploadFile()">Upload PDF</button>
+                </div>
 
                 <div class="sidebar-section">
                     <h3>Delete Documents</h3>
-                    <input type="text" id="deleteFileName" placeholder="Exact file name ...." />
+                    <input type="text" id="deleteFileName" placeholder="Click a file below to select ..." />
                     <button id="deleteBtn" class="danger-btn">Delete</button>
                 </div>
 
                 <div class="sidebar-section">
                     <h3>Uploaded Files</h3>
+                    <label class="select-all-label">
+                        <input type="checkbox" id="selectAllFiles" onchange="toggleSelectAll(this)" />
+                        Select All
+                    </label>
                     <div id="fileList" class="file-display">
                         Loading...
                     </div>
+                    <button id="rebuildBtn" class="rebuild-btn" onclick="rebuildIndex()" style="margin-top:10px;">
+                        Rebuild Index
+                    </button>
                 </div>
-            </aside>    
+            </aside>
 
             <section class="chat-section">
                 <div id="chat" class="chat-box"></div>
 
                 <div class="input-area">
-                    <input type="text" id="question" placeholder="Ask your question ...." />
-                    <button onclick="sendQuestion()">Send</button>
+                    <input
+                        type="text"
+                        id="question"
+                        placeholder="Ask a question  —or—  select files in the sidebar and click Generate Report"
+                        onkeydown="if(event.key==='Enter') sendQuestion()"
+                    />
+                    <button id="sendBtn" class="send-btn" onclick="sendQuestion()">Send</button>
+                    <button id="generateReportBtn" class="report-btn" onclick="generateReport()">Generate Report</button>
                 </div>
             </section>
         </div>
     </div>
-<script src="/static/script.js"></script>
-    
+
+    <script src="/static/script.js"></script>
 </body>
 </html>
