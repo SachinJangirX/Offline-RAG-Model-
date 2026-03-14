@@ -1,4 +1,4 @@
-// ─── Chat (Send button) ───────────────────────────────────────────────────────
+//Chat (Send button)
 
 async function sendQuestion() {
     const input = document.getElementById('question');
@@ -30,7 +30,7 @@ async function sendQuestion() {
     }
 }
 
-// ─── Generate Report (Generate Report button) ─────────────────────────────────
+// Generate Report (Generate Report button)
 
 async function generateReport() {
     // Collect selected files from sidebar checkboxes
@@ -71,7 +71,7 @@ async function generateReport() {
         if (isError) {
             appendMessage(chat, 'ai-message report-message', data.report || 'No report returned.', true);
         } else {
-            appendMessage(chat, 'ai-message report-message', data.report, true);
+            renderReportResponse(chat, data.report, files);
         }
     } catch {
         loading.className = 'ai-message';
@@ -81,7 +81,7 @@ async function generateReport() {
     }
 }
 
-// ─── File Upload ──────────────────────────────────────────────────────────────
+// File Upload
 
 async function uploadFile() {
     const fileInput = document.getElementById('fileInput');
@@ -111,7 +111,7 @@ async function uploadFile() {
     }
 }
 
-// ─── File Delete ──────────────────────────────────────────────────────────────
+// File Delete
 
 async function deleteFile() {
     const input    = document.getElementById('deleteFileName');
@@ -136,7 +136,7 @@ async function deleteFile() {
     }
 }
 
-// ─── Rebuild Index ────────────────────────────────────────────────────────────
+// Rebuild Index ────────────────────────────────────────────────────────────
 
 async function rebuildIndex() {
     const btn = document.getElementById('rebuildBtn');
@@ -208,7 +208,7 @@ async function loadFiles() {
     }
 }
 
-// ─── Select All Toggle ────────────────────────────────────────────────────────
+//Select All Toggle
 
 function toggleSelectAll(master) {
     document.querySelectorAll('.file-checkbox').forEach(cb => {
@@ -216,112 +216,95 @@ function toggleSelectAll(master) {
     });
 }
 
-// ─── Markdown renderer (offline, no CDN) ─────────────────────────────────────
+//Markdown renderer (offline, no CDN)
 // Handles: headings, tables, bold, italic, bullet lists, blockquotes, <hr>
 
 function renderMarkdown(text) {
-    const lines   = text.split('\n');
-    const html    = [];
-    let inTable   = false;
-    let inList    = false;
+    text = text.replace(/\n{3,}/g, '\n\n');  //remove blank lines from LLM output
 
-    const escapeHtml = s =>
-        s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const lines = text.split('\n');
 
-    const inlineFormat = s =>
-        escapeHtml(s)
-            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.+?)\*/g,     '<em>$1</em>')
-            .replace(/`(.+?)`/g,       '<code>$1</code>');
+    let html = [];
+    let inList = false;
+    let inTable = false;
 
-    const closeList  = () => { if (inList)  { html.push('</ul>');   inList  = false; } };
-    const closeTable = () => { if (inTable) { html.push('</tbody></table>'); inTable = false; } };
+    const closeList = () => {
+        if(inList) {
+            html.push('</ul>');
+            inList = false;
+        }
+    };
 
-    let tableHeaderDone = false;
+    const closeTable = () => {
+        if(inTable) {
+            html.push('</tbody></table>');
+            inTable = false;
+        }
+    };
 
-    for (let i = 0; i < lines.length; i++) {
-        const raw  = lines[i];
-        const line = raw.trimEnd();
+    const inlineFormat = (str) => {
+        return str
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/`(.*?)`/g, '<code>$1</code>');
+    };
 
-        // Horizontal rule
-        if (/^-{3,}$/.test(line.trim())) {
-            closeList(); closeTable();
-            html.push('<hr>');
+    for(let i =0; i<lines.length; i++){
+        let line = lines[i].trim();
+
+        // blank line 
+        if(line === ''){
+            closeList();
+            closeTable();
             continue;
         }
 
-        // Headings
-        const hMatch = line.match(/^(#{1,4})\s+(.*)/);
-        if (hMatch) {
-            closeList(); closeTable();
+        // plain section titles
+        if(/^[A-Z][A-Za-z ]{3,40}$/.test(line)){
+            closeList();
+            closeTable();
+            html.push(`<h2>${inlineFormat(line)}</h2>`);
+            continue;
+        }
+
+        // markdown headings
+        const hMatch = line.match(/^(#{1,4})\s+(.*)$/);
+        if(hMatch){
+            closeList();
+            closeTable();
             const level = hMatch[1].length;
-            html.push(`<h${level}>${inlineFormat(hMatch[2])}</h${level}>`);
+            html.push(`<h${level}>${inlineFormat(hMatch[2].trim())}</h${level}>`);
             continue;
         }
 
-        // Blockquote
-        if (line.startsWith('> ')) {
-            closeList(); closeTable();
-            html.push(`<blockquote>${inlineFormat(line.slice(2))}</blockquote>`);
-            continue;
-        }
-
-        // Table row  (line contains at least two | characters)
-        if (line.includes('|') && (line.match(/\|/g) || []).length >= 2) {
-            closeList();
-
-            const cells = line.split('|').slice(1, -1).map(c => c.trim());
-
-            // Separator row (e.g. |---|---|)
-            if (cells.every(c => /^[-: ]+$/.test(c))) {
-                html.push('<tbody>');
-                tableHeaderDone = true;
-                continue;
-            }
-
-            if (!inTable) {
-                html.push('<div class="table-wrap"><table>');
+        // table detection 
+        if(line.includes('|')){
+            const cells = line.split('|').map(c => c.trim()).filter(c => c !== '');
+            if(!inTable){
+                closeList();
+                html.push('<table><tbody>');
                 inTable = true;
-                tableHeaderDone = false;
             }
 
-            const tag = tableHeaderDone ? 'td' : 'th';
-            html.push('<tr>' + cells.map(c => `<${tag}>${inlineFormat(c)}</${tag}>`).join('') + '</tr>');
+            html.push('<tr>' + cells.map(c => `<td>${inlineFormat(c)}</td>`).join('') + '</tr>');
+            continue;
+        }
 
-            if (!tableHeaderDone) {
-                html.push('<thead></thead>');   // close header implicitly on next separator row
+        // detect repeated sentences -> bullet list 
+        if(/^[A-Z].+\.$/.test(line) && lines[i+1] && /^[A-Z].+\.$/.test(lines[i+1].trim())){
+            closeTable();
+
+            if(!inList){
+                html.push('<ul>');
+                inList = true;
             }
+
+            html.push(`<li>${inlineFormat(line)}</li>`);
             continue;
         }
 
-        // Close table if we've left it
-        if (inTable && !line.includes('|')) {
-            closeTable();
-            tableHeaderDone = false;
-        }
-
-        // Bullet list
-        const liMatch = line.match(/^[-*]\s+(.*)/);
-        if (liMatch) {
-            closeTable();
-            if (!inList) { html.push('<ul>'); inList = true; }
-            html.push(`<li>${inlineFormat(liMatch[1])}</li>`);
-            continue;
-        }
-
-        // Close list
-        if (inList && line.trim() === '') {
-            closeList();
-        }
-
-        // Blank line → paragraph break
-        if (line.trim() === '') {
-            closeList(); closeTable();
-            html.push('<br>');
-            continue;
-        }
-
-        // Normal paragraph line
+        // regular paragraph 
+        closeList();
         closeTable();
         html.push(`<p>${inlineFormat(line)}</p>`);
     }
@@ -331,7 +314,62 @@ function renderMarkdown(text) {
     return html.join('\n');
 }
 
-// ─── Structured ask-response renderer ─────────────────────────────────────────
+function renderReportResponse(container, markdownReport, files) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'ai-message report-message report-panel';
+
+    const header = document.createElement('div');
+    header.className = 'report-header';
+
+    const titleBlock = document.createElement('div');
+    titleBlock.className = 'report-title-block';
+
+    const eyebrow = document.createElement('div');
+    eyebrow.className = 'report-eyebrow';
+    eyebrow.textContent = 'Operational Intelligence Brief';
+
+    const title = document.createElement('h2');
+    title.className = 'report-title';
+    title.textContent = 'Generated Document Assessment';
+
+    titleBlock.appendChild(eyebrow);
+    titleBlock.appendChild(title);
+
+    const stamp = document.createElement('div');
+    stamp.className = 'report-stamp';
+    stamp.textContent = new Date().toLocaleString();
+
+    header.appendChild(titleBlock);
+    header.appendChild(stamp);
+
+    const meta = document.createElement('div');
+    meta.className = 'report-meta';
+
+    const fileCount = document.createElement('span');
+    fileCount.className = 'report-pill';
+    fileCount.textContent = files.length + (files.length === 1 ? ' source file' : ' source files');
+
+    const selected = document.createElement('span');
+    selected.className = 'report-files';
+    selected.textContent = 'Scope: ' + files.join(', ');
+
+    meta.appendChild(fileCount);
+    meta.appendChild(selected);
+
+    const body = document.createElement('div');
+    body.className = 'report-body';
+    body.innerHTML = renderMarkdown(markdownReport);
+
+    wrapper.appendChild(header);
+    wrapper.appendChild(meta);
+    wrapper.appendChild(body);
+
+    container.appendChild(wrapper);
+    container.scrollTop = container.scrollHeight;
+    return wrapper;
+}
+
+//Structured ask-response renderer
 // Builds: [warning banner?] + answer body + footer (sources + confidence badge)
 
 function renderAskResponse(container, data) {
@@ -381,7 +419,7 @@ function renderAskResponse(container, data) {
     return wrapper;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+//Helpers
 
 function appendMessage(container, className, text, asMarkdown = false) {
     const div     = document.createElement('div');
@@ -401,7 +439,7 @@ function setButtons(disabled) {
     document.getElementById('generateReportBtn').disabled = disabled;
 }
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
+//Init
 
 document.addEventListener('DOMContentLoaded', () => {
     loadFiles();

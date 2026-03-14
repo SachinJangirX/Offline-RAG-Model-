@@ -10,20 +10,20 @@ from langchain_community.llms import Ollama
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 
-# ── Paths & constants ──────────────────────────────────────────────────────────
+#Paths & constants 
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
 DB_PATH     = os.path.join(BASE_DIR, "..", "chroma_db")
-LLM_MODEL   = "llama3.2:1b"
+LLM_MODEL   = "gemma3:1b"
 TEMPERATURE = 0.0
 
-# ── Embedding model ────────────────────────────────────────────────────────────
+#Embedding model
 EMBED_MODEL      = "BAAI/bge-small-en-v1.5"
 BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
 
-# ── Cross-encoder model ────────────────────────────────────────────────────────
+#Cross-encoder model
 CE_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
-# Retrieval hyper-parameters
+#Retrieval hyper-parameters
 VEC_K         = 20      # candidates from vector store before reranking
 VEC_THRESHOLD = 0.70    # cosine-distance cut-off (lower = more similar)
 RERANK_TOP_K  = 5       # chunks passed to LLM after cross-encoder reranking
@@ -33,7 +33,7 @@ MIN_ANSWER_WORDS  = 8
 MIN_OVERLAP_WORDS = 5   
 
 
-# ── Data structures ────────────────────────────────────────────────────────────
+#Data structures
 
 @dataclass
 class VerificationResult:
@@ -54,7 +54,7 @@ class RAGResponse:
     chunks_reranked: int
 
 
-# ── Embedding wrapper ──────────────────────────────────────────────────────────
+#Embedding wrapper
 
 class BGEEmbeddings(HuggingFaceEmbeddings):
     """
@@ -66,7 +66,7 @@ class BGEEmbeddings(HuggingFaceEmbeddings):
         return super().embed_query(BGE_QUERY_PREFIX + text)
 
 
-# ── Cross-encoder singleton ────────────────────────────────────────────────────
+# Cross-encoder singleton
 
 _CE_MODEL = None
 
@@ -85,7 +85,7 @@ def _get_cross_encoder():
     return _CE_MODEL
 
 
-# ── RAG loader ─────────────────────────────────────────────────────────────────
+# RAG loader
 
 def load_rag():
     embeddings = BGEEmbeddings(
@@ -101,7 +101,7 @@ def load_rag():
     return llm, db
 
 
-# ── Stage 1: Query classifier ──────────────────────────────────────────────────
+#Stage 1: Query classifier
 
 def _classify_query(question: str) -> str:
     """
@@ -141,7 +141,7 @@ def _classify_query(question: str) -> str:
     return "general"
 
 
-# ── Stage 2: Metadata filter builder ──────────────────────────────────────────
+#Stage 2: Metadata filter builder
 
 def _build_metadata_filter(question: str) -> Optional[dict]:
     """
@@ -159,7 +159,7 @@ def _build_metadata_filter(question: str) -> Optional[dict]:
     return {"source": {"$in": pdf_names}}
 
 
-# ── Stage 3: Vector retrieval ──────────────────────────────────────────────────
+#Stage 3: Vector retrieval
 
 def _vector_retrieve(question: str, db, where_filter: Optional[dict]):
     """
@@ -199,7 +199,7 @@ def _vector_retrieve(question: str, db, where_filter: Optional[dict]):
     return scored  # list of (doc, vec_score)
 
 
-# ── Stage 4: Cross-encoder reranking ──────────────────────────────────────────
+#Stage 4: Cross-encoder reranking
 
 def _cross_encoder_rerank(question: str, candidates: list) -> list:
     """
@@ -233,7 +233,7 @@ def _cross_encoder_rerank(question: str, candidates: list) -> list:
     return triples[:RERANK_TOP_K]
 
 
-# ── Stage 5: Context builder ───────────────────────────────────────────────────
+#Stage 5: Context builder
 
 def _build_context(reranked: list) -> tuple[str, list[str]]:
     """
@@ -260,52 +260,38 @@ def _build_context(reranked: list) -> tuple[str, list[str]]:
     return context, sources
 
 
-# ── Stage 6: Prompt builder ────────────────────────────────────────────────────
+#Stage 6: Prompt builder
 
-_PROMPT_SUFFIX = (
-    "\n\nIf the context does not contain the answer, respond exactly:\n"
-    "  \"No relevant information found in the provided documents.\"\n\n"
-    "Do NOT introduce external knowledge. Quote or paraphrase the context directly.\n\n"
-    "Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
+_ANSWER_CONSTRAINT = (
+    "\nIf not in context, respond: \"Information not available in documents.\"\n"
+    "Do NOT add external knowledge. Use context only.\n"
+    "Context:\n{context}\n\nQuestion: {question}\nAnswer:"
 )
 
 _PROMPT_TEMPLATES = {
     "comparison": (
-        "You are a precise technical assistant.\n"
-        "The question asks for a comparison. "
-        "Present your answer as a Markdown table where possible.\n"
-        "Use ONLY the context provided."
-        + _PROMPT_SUFFIX
+        "Compare using ONLY the context. Use a table format if comparing multiple items.\n"
+        + _ANSWER_CONSTRAINT
     ),
     "definition": (
-        "You are a precise technical assistant.\n"
-        "The question asks for a definition or explanation. "
-        "Give a clear, concise definition using ONLY the context."
-        + _PROMPT_SUFFIX
+        "Define concisely using ONLY the context.\n"
+        + _ANSWER_CONSTRAINT
     ),
     "procedural": (
-        "You are a precise technical assistant.\n"
-        "The question asks about a process or procedure. "
-        "Present your answer as a numbered step-by-step list using ONLY the context."
-        + _PROMPT_SUFFIX
+        "List steps numbered 1, 2, 3... using ONLY the context.\n"
+        + _ANSWER_CONSTRAINT
     ),
     "list": (
-        "You are a precise technical assistant.\n"
-        "The question asks for a list. "
-        "Present your answer as a bullet list using ONLY the context."
-        + _PROMPT_SUFFIX
+        "List items as bullets using ONLY the context. Omit items not mentioned.\n"
+        + _ANSWER_CONSTRAINT
     ),
     "factual": (
-        "You are a precise technical assistant.\n"
-        "The question asks for a specific fact, number, or value. "
-        "Be exact — include the precise value and its unit if present. "
-        "Use ONLY the context."
-        + _PROMPT_SUFFIX
+        "State the exact value/number with its unit using ONLY the context.\n"
+        + _ANSWER_CONSTRAINT
     ),
     "general": (
-        "You are a precise technical assistant.\n"
-        "Answer the question using ONLY the context below."
-        + _PROMPT_SUFFIX
+        "Answer using ONLY the context below.\n"
+        + _ANSWER_CONSTRAINT
     ),
 }
 
@@ -315,7 +301,7 @@ def _build_prompt(question: str, context: str, query_type: str) -> str:
     return template.format(context=context, question=question)
 
 
-# ── Stage 7: Verification layer ────────────────────────────────────────────────
+#Stage 7: Verification layer
 
 _HEDGE_PHRASES = [
     "i don't know", "i do not know", "i'm not sure", "i am not sure",
@@ -360,7 +346,7 @@ def _verify(answer: str, context: str) -> VerificationResult:
     return VerificationResult(verified=verified, flags=flags)
 
 
-# ── Stage 8: Confidence scoring ───────────────────────────────────────────────
+#Stage 8: Confidence scoring
 
 def _score_confidence(
     reranked: list,
@@ -389,7 +375,7 @@ def _score_confidence(
     return round(score, 3)
 
 
-# ── Main entry-point: ask_question ────────────────────────────────────────────
+#Main entry-point: ask_question
 
 def ask_question(question: str, llm, db) -> RAGResponse:
     """
@@ -473,7 +459,7 @@ def ask_question(question: str, llm, db) -> RAGResponse:
     )
 
 
-# ── Utility functions (unchanged interface) ───────────────────────────────────
+#Utility functions (unchanged interface)
 
 def delete_document_by_source(filename: str, db) -> None:
     db.delete(where={"source": filename})
@@ -558,16 +544,12 @@ def generate_full_report(llm, db, filenames=None):
 
         print(f"[Report] Extracting segment {idx}/{len(segments)}")
 
-        prompt = f"""
-You are a precision data extraction engine.
-
-Extract ALL factual information from the document.
-
-Return bullet lists only.
-
-Document segment:
-{seg}
-"""
+        prompt = (
+            "Extract key facts as bullet points only.\n"
+            "Omit inferred information—only list what is explicitly stated.\n"
+            "Format: concise bullets, max 1 line each.\n\n"
+            f"Document:\n{seg}"
+        )
 
         try:
             facts = llm.invoke(prompt)
@@ -583,28 +565,16 @@ Document segment:
 
     print("[Report] Writing final report")
 
-    report_prompt = f"""
-Write a structured technical report using ONLY the facts below.
-
-Use Markdown sections.
-
-Sections:
-1. Executive Summary
-2. Definitions
-3. Key Concepts
-4. Technical Specifications
-5. Numerical Data
-6. Processes
-7. Governing Principles
-8. Comparative Analysis
-9. Applications
-10. Conclusion
-
-FACTS:
-{combined_facts}
-
-Write the report now.
-"""
+    report_prompt = (
+        "Write a technical report using ONLY the facts below.\n"
+        "Include only these sections if facts are present:\n"
+        "  1. Summary\n"
+        "  2. Key Concepts\n"
+        "  3. Specifications & Data\n"
+        "  4. Process/Steps (if applicable)\n"
+        "Omit sections with no facts. Use Markdown headers.\n\n"
+        f"Facts:\n{combined_facts}"
+    )
 
     try:
         report = llm.invoke(report_prompt)
