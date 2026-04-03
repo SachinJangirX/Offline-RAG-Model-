@@ -8,7 +8,13 @@ import threading
 import webbrowser
 import requests as _requests
 
-from rag_engine import load_rag, ask_question, delete_document_by_source, generate_full_report
+from rag_engine import (
+    load_rag, 
+    ask_question, 
+    delete_document_by_source, 
+    generate_full_report,
+    generate_comparative_report_simple,
+)
 from ingest import ingest_pdf
 
 OLLAMA_ERROR = (
@@ -92,24 +98,79 @@ async def generate_report(request: Request):
 
     return {"report": report}
 
+
+@app.post("/generate-comparative-report")
+async def generate_comparative(request: Request):
+    """
+    Generate a comparative analysis across multiple selected files.
+    
+    Request body:
+    {
+        "files": ["file1.pdf", "file2.pdf"],
+        "query": "What are the key differences?"
+    }
+    """
+    llm, db = get_rag()
+
+    data = await request.json()
+    selected_files = data.get("files", [])
+    query = data.get("query", "")
+
+    if not query:
+        return {"report": "**Error**: No query provided for comparison."}
+
+    if len(selected_files) < 2:
+        return {"report": "**Error**: Comparative report requires at least 2 files."}
+
+    try:
+        report = generate_comparative_report_simple(selected_files, query, llm, db)
+    except _requests.exceptions.ConnectionError:
+        return {"report": OLLAMA_ERROR}
+    except Exception as e:
+        return {"report": f"Error: {str(e)}"}
+
+    return {"report": report}
+
+
 @app.get("/files")
 async def list_files():
     files = os.listdir("uploads")
-    return {"files": files}
+    file_chunks = {}
+    
+    # Get chunk counts for each file from database
+    llm, db = get_rag()
+    for file in files:
+        try:
+            # Query chunks for this file
+            results = db.get(where={"source": file})
+            chunk_count = len(results.get("ids", [])) if results else 0
+            file_chunks[file] = chunk_count
+        except:
+            file_chunks[file] = 0
+    
+    return {"files": files, "chunk_counts": file_chunks}
 
 @app.post("/upload")
 async def upload(files: list[UploadFile] = File(...)):
     llm, db = get_rag()
 
+    results = []
     for file in files: 
         file_path = os.path.join(UPLOAD_FOLDER, file.filename)
 
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        ingest_pdf(file_path, db)
+        chunk_count = ingest_pdf(file_path, db)
+        results.append({
+            "filename": file.filename,
+            "chunks": chunk_count
+        })
     
-    return {"message": "File uploaded and ingested successfully."}
+    return {
+        "message": "File uploaded and ingested successfully.",
+        "results": results
+    }
 
 @app.post("/delete")
 async def delete_file(request: Request):

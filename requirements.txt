@@ -16,6 +16,7 @@ huggingface-hub
 tokenizers
 safetensors
 pypdf
+pillow
 numpy 
 scikit-learn
 scipy
@@ -23,3 +24,7 @@ pydantic
 tqdm
 regex
 python-dotenv
+pdf2image
+pytesseract
+llama-parse
+aiohttp

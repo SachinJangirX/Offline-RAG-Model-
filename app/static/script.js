@@ -13,11 +13,18 @@ async function sendQuestion() {
     const loading = appendMessage(chat, 'ai-message loading-message', 'Thinking...');
     setButtons(true);
 
+    // Collect selected files from sidebar checkboxes
+    const checkboxes = document.querySelectorAll('.file-checkbox:checked');
+    const selectedFiles = Array.from(checkboxes).map(cb => cb.value);
+
     try {
         const res  = await fetch('/ask', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question }),
+            body: JSON.stringify({ 
+                question,
+                files: selectedFiles  // Send selected files to backend
+            }),
         });
         const data = await res.json();
         loading.remove();
@@ -81,6 +88,90 @@ async function generateReport() {
     }
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Comparative Report Modal Functions
+// ──────────────────────────────────────────────────────────────────────────────
+
+function openComparativeModal() {
+    const modal = document.getElementById('comparativeModal');
+    const checkboxes = document.querySelectorAll('.file-checkbox:checked');
+    const files = Array.from(checkboxes).map(cb => cb.value);
+
+    if (files.length < 2) {
+        alert('Select at least 2 files to compare.');
+        return;
+    }
+
+    const filesList = document.getElementById('comparativeFilesList');
+    filesList.textContent = 'Comparing: ' + files.join(', ');
+
+    const textarea = document.getElementById('comparativeQuery');
+    textarea.value = '';
+    textarea.focus();
+
+    modal.style.display = 'flex';
+}
+
+function closeComparativeModal() {
+    const modal = document.getElementById('comparativeModal');
+    modal.style.display = 'none';
+}
+
+async function submitComparativeReport() {
+    const checkboxes = document.querySelectorAll('.file-checkbox:checked');
+    const files = Array.from(checkboxes).map(cb => cb.value);
+    const query = document.getElementById('comparativeQuery').value.trim();
+
+    if (!query) {
+        alert('Please enter a comparison query.');
+        return;
+    }
+
+    closeComparativeModal();
+
+    const chat = document.getElementById('chat');
+    appendMessage(chat, 'user-message', `Compare ${files.join(', ')}: ${query}`);
+
+    const loading = appendMessage(
+        chat, 'ai-message loading-message',
+        `Generating comparative analysis across ${files.length} file(s)...`
+    );
+    setButtons(true);
+
+    try {
+        const res = await fetch('/generate-comparative-report', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ files, query }),
+        });
+        const data = await res.json();
+        loading.remove();
+
+        const isError = !data.report ||
+            data.report.startsWith('**Error**') ||
+            data.report.startsWith('**No');
+
+        if (isError) {
+            appendMessage(chat, 'ai-message report-message', data.report || 'Comparison failed.', true);
+        } else {
+            renderReportResponse(chat, data.report, files);
+        }
+    } catch {
+        loading.className = 'ai-message';
+        loading.innerText = 'Error: could not generate comparative report.';
+    } finally {
+        setButtons(false);
+    }
+}
+
+// Close modal when clicking outside
+window.addEventListener('click', (event) => {
+    const modal = document.getElementById('comparativeModal');
+    if (event.target === modal) {
+        closeComparativeModal();
+    }
+});
+
 // File Upload
 
 async function uploadFile() {
@@ -92,7 +183,9 @@ async function uploadFile() {
 
     const btn = document.querySelector('#uploadBtn');
     btn.disabled = true;
-    btn.innerText = 'Uploading...';
+    
+    const totalFiles = fileInput.files.length;
+    const progressDisplay = document.getElementById('uploadProgressDisplay') || createProgressDisplay();
 
     const formData = new FormData();
     for (const file of fileInput.files) {
@@ -100,15 +193,72 @@ async function uploadFile() {
     }
 
     try {
-        await fetch('/upload', { method: 'POST', body: formData });
-        fileInput.value = '';
-        loadFiles();
+        btn.innerText = 'Uploading...';
+        progressDisplay.style.display = 'block';
+        updateProgressDisplay(progressDisplay, 0, totalFiles, '0 / ' + totalFiles + ' files processed...');
+
+        const response = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await response.json();
+
+        // Display results for each file
+        if (data.results && data.results.length > 0) {
+            let summary = 'Upload complete!\n\n';
+            let totalChunks = 0;
+            
+            data.results.forEach((result, index) => {
+                summary += `${result.filename}: ${result.chunks} segments\n`;
+                totalChunks += result.chunks;
+            });
+            
+            summary += `\nTotal: ${totalChunks} segments across ${totalFiles} file(s)`;
+            
+            updateProgressDisplay(progressDisplay, totalFiles, totalFiles, summary);
+            setTimeout(() => {
+                progressDisplay.style.display = 'none';
+                fileInput.value = '';
+                loadFiles();
+                alert(summary);
+            }, 1500);
+        } else {
+            fileInput.value = '';
+            loadFiles();
+            alert('Upload completed successfully.');
+        }
     } catch {
         alert('Upload failed.');
+        progressDisplay.style.display = 'none';
     } finally {
         btn.disabled = false;
         btn.innerText = 'Upload PDF';
     }
+}
+
+// Create progress display element
+function createProgressDisplay() {
+    const display = document.createElement('div');
+    display.id = 'uploadProgressDisplay';
+    display.className = 'upload-progress-container';
+    display.innerHTML = `
+        <div class="progress-bar-wrapper">
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill"></div>
+            </div>
+            <div class="progress-text"></div>
+        </div>
+    `;
+    const uploadSection = document.querySelector('.sidebar-section');
+    uploadSection.appendChild(display);
+    return display;
+}
+
+// Update progress display
+function updateProgressDisplay(display, current, total, message) {
+    const percentage = total > 0 ? (current / total) * 100 : 0;
+    const progressBar = display.querySelector('.progress-bar-fill');
+    const progressText = display.querySelector('.progress-text');
+    
+    progressBar.style.width = percentage + '%';
+    progressText.textContent = message;
 }
 
 // File Delete
@@ -173,12 +323,28 @@ async function loadFiles() {
         list.innerHTML = '';
         if (!data.files || data.files.length === 0) {
             list.innerHTML = "<div class='no-files'>No files uploaded</div>";
+            updateComparativeButtonVisibility();
             return;
         }
 
         data.files.forEach(file => {
             const div = document.createElement('div');
             div.className = 'file-item';
+
+            // Checkbox for selecting files for report generation
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'file-checkbox';
+            checkbox.value = file;
+            checkbox.title = 'Select for report';
+            checkbox.addEventListener('click', (e) => {
+                e.stopPropagation();
+                updateComparativeButtonVisibility();
+            });
+
+            // File info container (name + chunk count)
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'file-item-info';
 
             // Filename label — click to select for deletion
             const name = document.createElement('span');
@@ -191,20 +357,35 @@ async function loadFiles() {
                 document.getElementById('deleteFileName').value = file;
             });
 
-            // Checkbox for selecting files for report generation
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.className = 'file-checkbox';
-            checkbox.value = file;
-            checkbox.title = 'Select for report';
-            checkbox.addEventListener('click', (e) => e.stopPropagation());
+            // Chunk count display
+            const chunkCount = data.chunk_counts ? data.chunk_counts[file] || 0 : 0;
+            const countSpan = document.createElement('span');
+            countSpan.className = 'file-item-count';
+            countSpan.textContent = chunkCount + ' segment' + (chunkCount !== 1 ? 's' : '');
+
+            infoDiv.appendChild(name);
+            infoDiv.appendChild(countSpan);
 
             div.appendChild(checkbox);
-            div.appendChild(name);
+            div.appendChild(infoDiv);
             list.appendChild(div);
         });
+
+        updateComparativeButtonVisibility();
     } catch {
         console.error('Could not load file list.');
+    }
+}
+
+function updateComparativeButtonVisibility() {
+    const checkboxes = document.querySelectorAll('.file-checkbox:checked');
+    const selectedCount = checkboxes.length;
+    const comparativeBtn = document.getElementById('comparativeReportBtn');
+
+    if (selectedCount >= 2) {
+        comparativeBtn.style.display = 'inline-block';
+    } else {
+        comparativeBtn.style.display = 'none';
     }
 }
 
@@ -437,6 +618,7 @@ function appendMessage(container, className, text, asMarkdown = false) {
 function setButtons(disabled) {
     document.getElementById('sendBtn').disabled          = disabled;
     document.getElementById('generateReportBtn').disabled = disabled;
+    document.getElementById('comparativeReportBtn').disabled = disabled;
 }
 
 //Init

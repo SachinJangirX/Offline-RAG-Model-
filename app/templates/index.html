@@ -10,7 +10,15 @@
 
     <div class="app">
         <header class="topbar">
-            <div class="logo">Offline RAG Assistant</div>
+            <div class="header-left">
+                <div class="logo-section">
+                    <img src="/static/logo.png" alt="Defence R&D Organization" class="logo-image">
+                    <div>
+                        <div class="logo-title">Offline RAG Assistant</div>
+                        <div class="logo-subtitle">LOCAL AI AGENT (ADB)</div>
+                    </div>
+                </div>
+            </div>
             <div class="badge">Local Mode</div>
         </header>
 
@@ -55,8 +63,35 @@
                     />
                     <button id="sendBtn" class="send-btn" onclick="sendQuestion()">Send</button>
                     <button id="generateReportBtn" class="report-btn" onclick="generateReport()">Generate Report</button>
+                    <button id="comparativeReportBtn" class="comparative-btn" onclick="openComparativeModal()" style="display:none;">
+                        Compare Files
+                    </button>
                 </div>
             </section>
+        </div>
+    </div>
+
+    <!-- Comparative Report Modal -->
+    <div id="comparativeModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Generate Comparative Report</h2>
+                <button class="modal-close" onclick="closeComparativeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label for="comparativeQuery">Comparison Query:</label>
+                <textarea
+                    id="comparativeQuery"
+                    class="comparison-textarea"
+                    placeholder="Enter your comparison question&#10;Example: Compare power consumption and efficiency specifications"
+                    rows="4"
+                ></textarea>
+                <p class="modal-hint" id="comparativeFilesList"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="cancel-btn" onclick="closeComparativeModal()">Cancel</button>
+                <button class="confirm-btn" onclick="submitComparativeReport()">Generate Comparison</button>
+            </div>
         </div>
     </div>
 

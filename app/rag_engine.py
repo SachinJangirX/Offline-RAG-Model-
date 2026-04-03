@@ -585,3 +585,217 @@ def generate_full_report(llm, db, filenames=None):
     print("[Report] Done")
 
     return report
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# NEW: Multi-file Comparative Retrieval
+# ──────────────────────────────────────────────────────────────────────────────
+
+def retrieve_from_multiple_files(
+    question: str,
+    filenames: list[str],
+    db,
+) -> dict[str, list]:
+    """
+    Retrieve relevant chunks from multiple files for comparison.
+    
+    Args:
+        question: Query string
+        filenames: List of filenames to retrieve from
+        db: Chroma vector store
+    
+    Returns:
+        Dictionary mapping filename → list of (doc, vec_score) tuples
+    
+    Example output:
+    {
+        "file1.pdf": [(doc1, 0.15), (doc2, 0.22)],
+        "file2.pdf": [(doc3, 0.18), (doc4, 0.25)]
+    }
+    """
+    if not filenames:
+        return {}
+    
+    results_by_file = {}
+    
+    # Build file filter
+    if len(filenames) == 1:
+        file_filter = {"source": filenames[0]}
+    else:
+        file_filter = {"source": {"$in": filenames}}
+    
+    # Retrieve from all selected files
+    candidates = _vector_retrieve(question, db, file_filter)
+    
+    if not candidates:
+        print(f"[MultiFile] No candidates found for: {filenames}")
+        return {fn: [] for fn in filenames}
+    
+    # Group candidates by source file
+    for doc, vec_score in candidates:
+        source = doc.metadata.get("source", "unknown")
+        if source not in results_by_file:
+            results_by_file[source] = []
+        results_by_file[source].append((doc, vec_score))
+    
+    # Ensure all requested files are in output (even if empty)
+    for fn in filenames:
+        if fn not in results_by_file:
+            results_by_file[fn] = []
+    
+    print(f"[MultiFile] Retrieved chunks: {[(k, len(v)) for k, v in results_by_file.items()]}")
+    return results_by_file
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# NEW: Comparative Report Generation
+# ──────────────────────────────────────────────────────────────────────────────
+
+def generate_comparative_report(
+    question: str,
+    filenames: list[str],
+    llm,
+    db,
+) -> str:
+    """
+    Generate a structured comparative report across multiple files.
+    
+    Pipeline:
+    1. Retrieve relevant chunks from all selected files
+    2. Group chunks by file
+    3. Rerank using cross-encoder
+    4. Format context with file labels
+    5. Call LLM with comparison prompt
+    6. Return structured comparison
+    
+    Args:
+        question: Comparison query
+        filenames: List of filenames to compare
+        llm: Language model instance
+        db: Chroma vector store
+    
+    Returns:
+        Formatted comparison report as string
+    """
+    if not filenames or len(filenames) < 2:
+        return (
+            "**Error**: Comparative report requires at least 2 files.\n\n"
+            "Please select 2 or more files to compare."
+        )
+    
+    print(f"[ComparativeReport] Starting comparison across {len(filenames)} files")
+    print(f"[ComparativeReport] Question: {question}")
+    
+    # ──────────────────────────────────────────────────────────────
+    # STEP 1: Multi-file retrieval (grouped by source)
+    # ──────────────────────────────────────────────────────────────
+    results_by_file = retrieve_from_multiple_files(question, filenames, db)
+    
+    # Flatten all candidates for reranking
+    all_candidates = []
+    for candidates_list in results_by_file.values():
+        all_candidates.extend(candidates_list)
+    
+    if not all_candidates:
+        return (
+            f"**No relevant content found** in selected files for: \"{question}\".\n\n"
+            "Try a different query or verify files are ingested."
+        )
+    
+    # ──────────────────────────────────────────────────────────────
+    # STEP 2: Rerank all candidates together (cross-encoder)
+    # ──────────────────────────────────────────────────────────────
+    reranked = _cross_encoder_rerank(question, all_candidates)
+    
+    # ──────────────────────────────────────────────────────────────
+    # STEP 3: Group reranked chunks by file (preserve rank order)
+    # ──────────────────────────────────────────────────────────────
+    grouped_chunks_by_file = {fn: [] for fn in filenames}
+    for doc, vec_score, ce_score in reranked:
+        source = doc.metadata.get("source", "unknown")
+        if source in grouped_chunks_by_file:
+            grouped_chunks_by_file[source].append(
+                f"[Page {doc.metadata.get('page', '?')}]\n{doc.page_content}"
+            )
+    
+    # ──────────────────────────────────────────────────────────────
+    # STEP 4: Format context for comparison
+    # ──────────────────────────────────────────────────────────────
+    context_parts = []
+    file_num = 1
+    for filename in filenames:
+        chunks = grouped_chunks_by_file.get(filename, [])
+        if chunks:
+            context_parts.append(
+                f"**Document {file_num} ({filename})**:\n"
+                + "\n\n".join(chunks)
+            )
+            file_num += 1
+    
+    if not context_parts:
+        return (
+            f"**No matching content found** in selected files.\n\n"
+            f"Query: \"{question}\"\n"
+            f"Files searched: {', '.join(filenames)}"
+        )
+    
+    context = "\n\n" + "=" * 60 + "\n\n".join(context_parts)
+    
+    # ──────────────────────────────────────────────────────────────
+    # STEP 5: Call LLM with comparison prompt
+    # ──────────────────────────────────────────────────────────────
+    comparison_prompt = (
+        "You are a technical analyst comparing documents.\n\n"
+        "Compare the following documents to answer the query.\n"
+        "Extract key points from each document.\n"
+        "Highlight similarities and differences.\n"
+        "Present findings in a structured comparison.\n\n"
+        "Format your response with:\n"
+        "  - Overview of comparison\n"
+        "  - Key points from each document\n"
+        "  - Similarities\n"
+        "  - Differences\n"
+        "  - Summary/Recommendations\n\n"
+        "Query: {question}\n"
+        "Documents:\n{context}\n\n"
+        "Structured Comparison Report:"
+    ).format(question=question, context=context)
+    
+    try:
+        comparison = llm.invoke(comparison_prompt)
+    except Exception as e:
+        print(f"[ComparativeReport] LLM call failed: {e}")
+        comparison = f"Error generating comparison: {str(e)}"
+    
+    print(f"[ComparativeReport] Done. Report length: {len(comparison)} chars")
+    return comparison
+
+
+def generate_comparative_report_simple(
+    files: list[str],
+    query: str,
+    llm,
+    db,
+) -> str:
+    """
+    Simplified wrapper for comparative report generation.
+    Uses default prompts optimized for 1B LLMs with low context.
+    
+    Args:
+        files: List of filenames
+        query: Comparison question
+        llm: Language model
+        db: Vector store
+    
+    Returns:
+        Comparative analysis text
+    
+    Example:
+        report = generate_comparative_report_simple(
+            files=["datasheet_a.pdf", "datasheet_b.pdf"],
+            query="Compare power consumption between components",
+            llm=llm,
+            db=db
+        )
+    """
+    return generate_comparative_report(query, files, llm, db)

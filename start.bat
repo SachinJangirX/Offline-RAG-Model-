@@ -1,28 +1,31 @@
 @echo off
-title Offline RAG Chatbot
+title Offline RAG Assistant - Startup
 
-echo =====================================
-echo Starting Offline RAG Chatbot System
-echo =====================================
+echo ============================================
+echo   Starting Offline RAG Assistant System
+echo ============================================
 
-echo.
-echo Activating Python virtual environment...
-call venv\Scripts\activate
+REM Activate venv
+call venv\Scripts\activate.bat
 
-echo.
-echo Starting Ollama server...
-start cmd /k ollama serve
+REM Set paths
+set PATH=%PATH%;C:\Program Files\Tesseract-OCR
+set PATH=%PATH%;C:\poppler\Library\bin
+set HF_HUB_DISABLE_TELEMETRY=1
 
-timeout /t 5
+REM Start Ollama
+echo Starting Ollama...
+start "" cmd /k "ollama serve"
 
-echo.
-echo Starting backend server...
-start cmd /k python app\main.py
+timeout /t 5 > nul
 
-timeout /t 8
+REM Start FastAPI (IMPORTANT FIX HERE)
+echo Starting backend...
+start "" cmd /k "python app\main.py"
 
-echo.
-echo Opening chatbot interface...
-start http://localhost:8000
+REM Open browser
+timeout /t 3 > nul
+start http://127.0.0.1:8000
 
+echo System started!
 pause
