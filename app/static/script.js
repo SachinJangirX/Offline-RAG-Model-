@@ -37,7 +37,7 @@ async function sendQuestion() {
     }
 }
 
-// Generate Report (Generate Report button)
+// Generate Report
 
 async function generateReport() {
     // Collect selected files from sidebar checkboxes
@@ -87,10 +87,6 @@ async function generateReport() {
         setButtons(false);
     }
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Comparative Report Modal Functions
-// ──────────────────────────────────────────────────────────────────────────────
 
 function openComparativeModal() {
     const modal = document.getElementById('comparativeModal');
@@ -262,7 +258,6 @@ function updateProgressDisplay(display, current, total, message) {
 }
 
 // File Delete
-
 async function deleteFile() {
     const input    = document.getElementById('deleteFileName');
     const filename = input.value.trim();
@@ -286,8 +281,7 @@ async function deleteFile() {
     }
 }
 
-// Rebuild Index ────────────────────────────────────────────────────────────
-
+// Rebuild Index
 async function rebuildIndex() {
     const btn = document.getElementById('rebuildBtn');
     if (!confirm('Re-ingest all uploaded PDFs with the new chunk settings?\nThis may take a minute.')) return;
@@ -342,11 +336,11 @@ async function loadFiles() {
                 updateComparativeButtonVisibility();
             });
 
-            // File info container (name + chunk count)
+            // File info container
             const infoDiv = document.createElement('div');
             infoDiv.className = 'file-item-info';
 
-            // Filename label — click to select for deletion
+            // Filename label
             const name = document.createElement('span');
             name.className = 'file-item-name';
             name.textContent = file;
@@ -390,15 +384,11 @@ function updateComparativeButtonVisibility() {
 }
 
 //Select All Toggle
-
 function toggleSelectAll(master) {
     document.querySelectorAll('.file-checkbox').forEach(cb => {
         cb.checked = master.checked;
     });
 }
-
-//Markdown renderer (offline, no CDN)
-// Handles: headings, tables, bold, italic, bullet lists, blockquotes, <hr>
 
 function renderMarkdown(text) {
     text = text.replace(/\n{3,}/g, '\n\n');  //remove blank lines from LLM output
@@ -550,14 +540,11 @@ function renderReportResponse(container, markdownReport, files) {
     return wrapper;
 }
 
-//Structured ask-response renderer
-// Builds: [warning banner?] + answer body + footer (sources + confidence badge)
-
 function renderAskResponse(container, data) {
     const wrapper = document.createElement('div');
     wrapper.className = 'ai-message ask-response';
 
-    // Warning banner — shown when the pipeline sets a warning flag
+    // Warning banner
     if (data.warning) {
         const banner = document.createElement('div');
         banner.className = 'warning-banner';
@@ -571,7 +558,7 @@ function renderAskResponse(container, data) {
     body.innerText  = data.answer || '(no answer returned)';
     wrapper.appendChild(body);
 
-    // Footer: sources on the left, confidence badge on the right
+    // Footer
     const footer = document.createElement('div');
     footer.className = 'answer-footer';
 
@@ -601,7 +588,6 @@ function renderAskResponse(container, data) {
 }
 
 //Helpers
-
 function appendMessage(container, className, text, asMarkdown = false) {
     const div     = document.createElement('div');
     div.className = className;
@@ -622,7 +608,6 @@ function setButtons(disabled) {
 }
 
 //Init
-
 document.addEventListener('DOMContentLoaded', () => {
     loadFiles();
     document.getElementById('deleteBtn').addEventListener('click', deleteFile);

@@ -15,8 +15,7 @@ body {
     line-height: 1.5;
 }
 
-/* ─── App shell ──────────────────────────────────────────────────────────── */
-
+/* App shell */
 .app {
     display: flex;
     flex-direction: column;
@@ -25,7 +24,6 @@ body {
 }
 
 /* Topbar */
-
 .topbar {
     height: 72px;
     background: linear-gradient(135deg, #001f3f 0%, #003d82 100%);
@@ -87,8 +85,7 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
-/* ─── Main layout ────────────────────────────────────────────────────────── */
-
+/* Main layout */
 .main {
     display: flex;
     flex: 1;
@@ -96,8 +93,7 @@ body {
     background: #f8f9fa;
 }
 
-/* ─── Sidebar ────────────────────────────────────────────────────────────── */
-
+/* Sidebar */
 .sidebar {
     width: 320px;
     background: linear-gradient(180deg, #f5f7ff 0%, #ffffff 100%);
@@ -161,8 +157,7 @@ body {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* ─── Buttons ────────────────────────────────────────────────────────────── */
-
+/* Buttons */
 .primary-btn {
     width: 100%;
     padding: 11px 14px;
@@ -245,8 +240,7 @@ body {
     cursor: not-allowed;
 }
 
-/* ─── File list (sidebar) ────────────────────────────────────────────────── */
-
+/* File list (sidebar) */
 .file-display {
     max-height: 240px;
     overflow-y: auto;
@@ -340,8 +334,7 @@ body {
     font-style: italic;
 }
 
-/* ─── Chat section ───────────────────────────────────────────────────────── */
-
+/* Chat section */
 .chat-section {
     flex: 1;
     display: flex;
@@ -351,8 +344,7 @@ body {
     border-left: 3px solid #0066cc;
 }
 
-/* ─── Chat messages ──────────────────────────────────────────────────────── */
-
+/* Chat messages */
 .chat-box {
     flex: 1;
     overflow-y: auto;
@@ -408,8 +400,7 @@ body {
     overflow: visible;
 }
 
-/* ─── Ask Response (QnA with Confidence Scoring) ────────────────────────── */
-
+/* Ask Response */
 .ask-response {
     max-width: 78%;
     font-size: 14px;
@@ -559,8 +550,7 @@ body {
     50%       { opacity: 0.3; }
 }
 
-/* ─── Input area ─────────────────────────────────────────────────────────── */
-
+/* Input area */
 .input-area {
     display: flex;
     align-items: center;
@@ -655,8 +645,7 @@ body {
     cursor: not-allowed;
 }
 
-/* ─── Rendered Markdown inside report bubbles ────────────────────────────── */
-
+/* Rendered Markdown inside report bubbles */
 .report-body h1,
 .report-body h2,
 .report-body h3,
@@ -804,8 +793,7 @@ body {
     }
 }
 
-/* ─── Responsive Design ──────────────────────────────────────────────────── */
-
+/* Responsive Design */
 @media (max-width: 1024px) {
     .sidebar {
         width: 280px;
@@ -890,7 +878,6 @@ body {
 }
 
 /* Animations and Transitions */
-
 .loading-message {
     color: #9ca3af;
     font-style: italic;
@@ -903,7 +890,6 @@ body {
 }
 
 /* Scrollbar styling */
-
 .chat-box::-webkit-scrollbar,
 .file-display::-webkit-scrollbar,
 .report-body::-webkit-scrollbar {
@@ -929,8 +915,7 @@ body {
     background: #94a3b8;
 }
 
-/* ─── Upload Progress Display ──────────────────────────────────────────── */
-
+/* Upload Progress Display */
 #uploadProgressDisplay {
     display: none;
     margin-top: 16px;
@@ -984,8 +969,7 @@ body {
     line-height: 1.4;
 }
 
-/* ─── File Item - Show Segment Count ───────────────────────────────────── */
-
+/* File Item - Show Segment Count */
 .file-item-info {
     display: flex;
     flex-direction: column;
@@ -1000,8 +984,7 @@ body {
     font-weight: 500;
 }
 
-/* ─── Comparative Report Button ──────────────────────────────────────────── */
-
+/* Comparative Report Button */
 .comparative-btn {
     padding: 12px 20px;
     background: linear-gradient(135deg, #9933ff 0%, #6600cc 100%);
@@ -1031,8 +1014,7 @@ body {
     cursor: not-allowed;
 }
 
-/* ─── Modal Dialog ───────────────────────────────────────────────────────── */
-
+/*  Modal Dialog  */
 .modal {
     position: fixed;
     top: 0;

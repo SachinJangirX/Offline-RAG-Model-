@@ -34,7 +34,6 @@ MIN_OVERLAP_WORDS = 5
 
 
 #Data structures
-
 @dataclass
 class VerificationResult:
     verified: bool
@@ -55,7 +54,6 @@ class RAGResponse:
 
 
 #Embedding wrapper
-
 class BGEEmbeddings(HuggingFaceEmbeddings):
     """
     Thin wrapper that prepends the BGE retrieval instruction to every query.
@@ -67,7 +65,6 @@ class BGEEmbeddings(HuggingFaceEmbeddings):
 
 
 # Cross-encoder singleton
-
 _CE_MODEL = None
 
 def _get_cross_encoder():
@@ -86,7 +83,6 @@ def _get_cross_encoder():
 
 
 # RAG loader
-
 def load_rag():
     embeddings = BGEEmbeddings(
         model_name=EMBED_MODEL,
@@ -101,8 +97,7 @@ def load_rag():
     return llm, db
 
 
-#Stage 1: Query classifier
-
+#Query classifier
 def _classify_query(question: str) -> str:
     """
     Regex-based intent classification — zero LLM calls.
@@ -141,8 +136,7 @@ def _classify_query(question: str) -> str:
     return "general"
 
 
-#Stage 2: Metadata filter builder
-
+#Metadata filter builder
 def _build_metadata_filter(question: str) -> Optional[dict]:
     """
     If the question mentions one or more explicit .pdf filenames,
@@ -159,8 +153,7 @@ def _build_metadata_filter(question: str) -> Optional[dict]:
     return {"source": {"$in": pdf_names}}
 
 
-#Stage 3: Vector retrieval
-
+#Vector retrieval
 def _vector_retrieve(question: str, db, where_filter: Optional[dict]):
     """
     Retrieve up to VEC_K candidates from ChromaDB.
@@ -199,8 +192,7 @@ def _vector_retrieve(question: str, db, where_filter: Optional[dict]):
     return scored  # list of (doc, vec_score)
 
 
-#Stage 4: Cross-encoder reranking
-
+#Cross-encoder reranking
 def _cross_encoder_rerank(question: str, candidates: list) -> list:
     """
     Rerank (doc, vec_score) pairs with cross-encoder.
@@ -233,8 +225,7 @@ def _cross_encoder_rerank(question: str, candidates: list) -> list:
     return triples[:RERANK_TOP_K]
 
 
-#Stage 5: Context builder
-
+#Context builder
 def _build_context(reranked: list) -> tuple[str, list[str]]:
     """
     Re-sort reranked chunks into document reading order (page, chunk_seq)
@@ -260,8 +251,7 @@ def _build_context(reranked: list) -> tuple[str, list[str]]:
     return context, sources
 
 
-#Stage 6: Prompt builder
-
+#Prompt builder
 _ANSWER_CONSTRAINT = (
     "\nIf not in context, respond: \"Information not available in documents.\"\n"
     "Do NOT add external knowledge. Use context only.\n"
@@ -301,8 +291,7 @@ def _build_prompt(question: str, context: str, query_type: str) -> str:
     return template.format(context=context, question=question)
 
 
-#Stage 7: Verification layer
-
+#Verification layer
 _HEDGE_PHRASES = [
     "i don't know", "i do not know", "i'm not sure", "i am not sure",
     "cannot determine", "not mentioned", "not stated", "not specified",
@@ -346,8 +335,7 @@ def _verify(answer: str, context: str) -> VerificationResult:
     return VerificationResult(verified=verified, flags=flags)
 
 
-#Stage 8: Confidence scoring
-
+#Confidence scoring
 def _score_confidence(
     reranked: list,
     verification: VerificationResult,
@@ -375,30 +363,18 @@ def _score_confidence(
     return round(score, 3)
 
 
-#Main entry-point: ask_question
-
+#ask_question - full 8 stage RAG pipeline
 def ask_question(question: str, llm, db) -> RAGResponse:
-    """
-    Full 8-stage RAG pipeline:
-      1 classify query
-      2 build metadata filter
-      3 vector retrieval
-      4 cross-encoder reranking
-      5 context builder
-      6 prompt builder
-      7 LLM call
-      8 verification + confidence scoring
-    """
-    # Stage 1
+    # 1 - classify query
     query_type = _classify_query(question)
     print(f"[Pipeline] query_type={query_type!r}")
 
-    # Stage 2
+    # 2 - build metadata filter 
     where_filter = _build_metadata_filter(question)
     if where_filter:
         print(f"[Pipeline] metadata filter: {where_filter}")
 
-    # Stage 3
+    # 3 - vector retrieval  
     candidates = _vector_retrieve(question, db, where_filter)
     if not candidates:
         return RAGResponse(
@@ -413,20 +389,20 @@ def ask_question(question: str, llm, db) -> RAGResponse:
             chunks_reranked=0,
         )
 
-    # Stage 4
+    # 4 - cross-encoder reranking
     reranked = _cross_encoder_rerank(question, candidates)
 
-    # Stage 5
+    # 5 - context builder
     context, sources = _build_context(reranked)
 
-    # Stage 6
+    # 6 - prompt builder
     prompt = _build_prompt(question, context, query_type)
 
-    # Stage 7 — LLM call
+    # 7 - LLM call
     response = llm.invoke(prompt)
     answer   = response.strip()
 
-    # Stage 8
+    # 8 - verification and confidence scoring
     verification = _verify(answer, context)
     confidence   = _score_confidence(reranked, verification)
 
@@ -459,22 +435,19 @@ def ask_question(question: str, llm, db) -> RAGResponse:
     )
 
 
-#Utility functions (unchanged interface)
-
+#Utility functions
 def delete_document_by_source(filename: str, db) -> None:
     db.delete(where={"source": filename})
 
 
 def generate_full_report(llm, db, filenames=None):
-
-    # Guard: reject empty filename list
     if filenames is not None and len(filenames) == 0:
         return (
             "No files specified. Type filenames separated by **+** in the input box "
             "and click **Generate Report**.\n\nExample: `component_A.pdf + datasheet_B.pdf`"
         )
 
-    # Strict filtering
+    # filtering
     if filenames:
         if len(filenames) == 1:
             db_filter = {"source": filenames[0]}
@@ -539,7 +512,7 @@ def generate_full_report(llm, db, filenames=None):
 
     all_facts = []
 
-    # PASS 1: fact extraction
+    # fact extraction
     for idx, seg in enumerate(segments, 1):
 
         print(f"[Report] Extracting segment {idx}/{len(segments)}")
@@ -559,7 +532,6 @@ def generate_full_report(llm, db, filenames=None):
 
         all_facts.append(f"Segment {idx}\n{facts}")
 
-    # Prevent huge prompts
     MAX_SEGMENTS_FOR_REPORT = 5
     combined_facts = "\n\n".join(all_facts[:MAX_SEGMENTS_FOR_REPORT])
 
@@ -585,11 +557,6 @@ def generate_full_report(llm, db, filenames=None):
     print("[Report] Done")
 
     return report
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# NEW: Multi-file Comparative Retrieval
-# ──────────────────────────────────────────────────────────────────────────────
 
 def retrieve_from_multiple_files(
     question: str,
@@ -646,11 +613,6 @@ def retrieve_from_multiple_files(
     print(f"[MultiFile] Retrieved chunks: {[(k, len(v)) for k, v in results_by_file.items()]}")
     return results_by_file
 
-
-# ──────────────────────────────────────────────────────────────────────────────
-# NEW: Comparative Report Generation
-# ──────────────────────────────────────────────────────────────────────────────
-
 def generate_comparative_report(
     question: str,
     filenames: list[str],
@@ -686,9 +648,7 @@ def generate_comparative_report(
     print(f"[ComparativeReport] Starting comparison across {len(filenames)} files")
     print(f"[ComparativeReport] Question: {question}")
     
-    # ──────────────────────────────────────────────────────────────
-    # STEP 1: Multi-file retrieval (grouped by source)
-    # ──────────────────────────────────────────────────────────────
+    
     results_by_file = retrieve_from_multiple_files(question, filenames, db)
     
     # Flatten all candidates for reranking
@@ -702,14 +662,8 @@ def generate_comparative_report(
             "Try a different query or verify files are ingested."
         )
     
-    # ──────────────────────────────────────────────────────────────
-    # STEP 2: Rerank all candidates together (cross-encoder)
-    # ──────────────────────────────────────────────────────────────
     reranked = _cross_encoder_rerank(question, all_candidates)
     
-    # ──────────────────────────────────────────────────────────────
-    # STEP 3: Group reranked chunks by file (preserve rank order)
-    # ──────────────────────────────────────────────────────────────
     grouped_chunks_by_file = {fn: [] for fn in filenames}
     for doc, vec_score, ce_score in reranked:
         source = doc.metadata.get("source", "unknown")
@@ -718,9 +672,6 @@ def generate_comparative_report(
                 f"[Page {doc.metadata.get('page', '?')}]\n{doc.page_content}"
             )
     
-    # ──────────────────────────────────────────────────────────────
-    # STEP 4: Format context for comparison
-    # ──────────────────────────────────────────────────────────────
     context_parts = []
     file_num = 1
     for filename in filenames:
@@ -741,9 +692,6 @@ def generate_comparative_report(
     
     context = "\n\n" + "=" * 60 + "\n\n".join(context_parts)
     
-    # ──────────────────────────────────────────────────────────────
-    # STEP 5: Call LLM with comparison prompt
-    # ──────────────────────────────────────────────────────────────
     comparison_prompt = (
         "You are a technical analyst comparing documents.\n\n"
         "Compare the following documents to answer the query.\n"

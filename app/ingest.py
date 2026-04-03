@@ -15,7 +15,6 @@ import pytesseract
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 
-# Configure Tesseract path if not already in system PATH
 # Try common installation locations on Windows
 if os.name == 'nt':  # Windows only
     common_paths = [
@@ -26,26 +25,21 @@ if os.name == 'nt':  # Windows only
         if os.path.exists(path):
             pytesseract.pytesseract.tesseract_cmd = path
             break
-# On Linux/Mac or if Tesseract is in PATH, this line won't execute and pytesseract will use PATH
 
 # Load environment variables
 load_dotenv()
 
-# ── Tunable constants ──────────────────────────────────────────────────────────
+#Tunable constants
 CHUNK_SIZE = 300
 CHUNK_OVERLAP = 30
 MIN_CHUNK_LEN = 40
-SCANNED_THRESHOLD = 50          # stricter threshold for scanned detection
-OCR_DPI = 150                   # use 100 if RAM is very tight
-AIR_GAPPED_MODE = True          # Set to False to enable API-based extraction if needed
-
-# LlamaParse configuration - DISABLED for air-gapped environments
-# Only enable if you have internet and want to use the paid API service
+SCANNED_THRESHOLD = 50          
+OCR_DPI = 150                   
+AIR_GAPPED_MODE = True          
 LLAMA_PARSE_ENABLED = not AIR_GAPPED_MODE
 LLAMA_PARSE_API_KEY = os.getenv("LLAMA_PARSE_API_KEY", "") if LLAMA_PARSE_ENABLED else ""
 USE_LLAMA_PARSE = bool(LLAMA_PARSE_API_KEY) and LLAMA_PARSE_ENABLED
 
-# Print startup info
 if AIR_GAPPED_MODE:
     print("[AIR-GAPPED MODE] Using offline OCR extraction only (Tesseract)")
     print("[INGEST] LlamaParse API disabled - system operates in offline mode")
@@ -68,31 +62,31 @@ def preprocess_image_for_ocr(image: Image.Image) -> Image.Image:
         if image.mode != 'RGB':
             image = image.convert('RGB')
         
-        # Step 1: Denoise using bilateral filter (preserve edges)
+        # 1: Denoise using bilateral filter
         img_array = np.array(image)
         
-        # Step 2: Convert to grayscale for processing
+        # 2: Convert to grayscale for processing
         img_gray = Image.new('L', image.size)
         img_gray.paste(image.convert('L'))
         img_array = np.array(img_gray)
         
-        # Step 3: Apply bilateral-like denoising (using median filter as approximation)
+        # 3: Apply bilateral-like denoising (using median filter as approximation)
         img_denoised = Image.fromarray(img_array).filter(ImageFilter.MedianFilter(size=3))
         
-        # Step 4: Enhance contrast
+        # 4: Enhance contrast
         enhancer = ImageEnhance.Contrast(img_denoised)
         img_contrast = enhancer.enhance(1.5)
         
-        # Step 5: Enhance brightness
+        # 5: Enhance brightness
         enhancer_brightness = ImageEnhance.Brightness(img_contrast)
         img_brightness = enhancer_brightness.enhance(1.1)
         
-        # Step 6: Apply threshold to convert to black & white
+        # 6: Apply threshold to convert to black & white
         img_array = np.array(img_brightness)
         threshold = 150
         img_binary = np.where(img_array > threshold, 255, 0).astype(np.uint8)
         
-        # Step 7: Apply morphological operations to clean up (optional, requires cv2)
+        # 7: Apply morphological operations to clean up
         try:
             import cv2
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
@@ -194,16 +188,6 @@ def is_scanned_pdf(text: str) -> bool:
     return len((text or "").strip()) < SCANNED_THRESHOLD
 
 
-# ─────── Offline OCR Functions ───────
-# LlamaParse functions removed for air-gapped operation
-
-
-# ─────── OCR Functions (Fallback) ───────
-
-
-
-
-
 def get_pdf_page_count(file_path: str) -> int:
     """Get page count safely using pypdf if available, else fallback to loader."""
     try:
@@ -251,20 +235,14 @@ def extract_ocr_from_pdf(file_path: str) -> Tuple[Dict[int, str], bool]:
 
                 image = images[0]
 
-                # ENHANCED: Preprocess image for better OCR
+                # Preprocess image for better OCR
                 print(f"[OCR] Page {page_num}: Preprocessing image...")
                 image = preprocess_image_for_ocr(image)
 
-                # ENHANCED: Better Tesseract config for scanned documents
-                # PSM 6 = Assume a single block of text (good for full pages)
-                # OEM 3 = Use both legacy and LSTM OCR modes for better accuracy
                 raw_text = pytesseract.image_to_string(
                     image,
                     config="--oem 3 --psm 6 -c tessedit_char_whitelist=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,;:!?-/()\n "
                 )
-
-                # Alternative: For complex layouts with tables/columns
-                # raw_text = pytesseract.image_to_string(image, config="--oem 3 --psm 1")
 
                 cleaned = clean_ocr_text(raw_text)
 
@@ -315,9 +293,7 @@ def build_documents_from_ocr(ocr_data: Dict[int, str]) -> List[Document]:
     return docs
 
 
-# ─────── Main Ingestion Function ───────
-
-
+# Main Ingestion Function called from API
 def ingest_pdf(file_path: str, db) -> int:
     """
     Ingest PDF into vector DB with intelligent offline extraction.
@@ -336,7 +312,7 @@ def ingest_pdf(file_path: str, db) -> int:
 
     print(f"\n[Ingest] {filename}: Starting offline extraction pipeline...")
     
-    # STEP 1: Try PyPDFLoader first (fastest for text PDFs)
+    # Try PyPDFLoader first
     try:
         loader = PyPDFLoader(file_path)
         pages = loader.load()
@@ -362,7 +338,7 @@ def ingest_pdf(file_path: str, db) -> int:
         pages_to_use = []
         doc_type = "ocr"
 
-    # STEP 2: If scanned or PyPDFLoader failed, use OCR
+    # If scanned or PyPDFLoader failed, use OCR
     if not pages_to_use or doc_type == "ocr":
         print(f"[Ingest] {filename}: Running Tesseract OCR (offline)...")
         ocr_data, ocr_success = extract_ocr_from_pdf(file_path)
@@ -374,12 +350,12 @@ def ingest_pdf(file_path: str, db) -> int:
             print(f"[Ingest] ERROR: OCR failed for {filename}. No readable text extracted.")
             pages_to_use = []
 
-    # STEP 3: Guard against empty input before chunking
+    # Guard against empty input before chunking
     if not pages_to_use:
         print(f"[Ingest] ERROR: No valid pages to process for {filename}")
         return 0
 
-    # STEP 4: Chunking
+    # Chunking
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
@@ -390,12 +366,12 @@ def ingest_pdf(file_path: str, db) -> int:
     chunks = splitter.split_documents(pages_to_use)
     chunks = [c for c in chunks if len(c.page_content.strip()) >= MIN_CHUNK_LEN]
 
-    # STEP 5: Guard against empty chunks before DB insert
+    # Guard against empty chunks before DB insert
     if not chunks:
         print(f"[Ingest] ERROR: No valid chunks extracted from {filename}. Skipping DB insert.")
         return 0
 
-    # STEP 6: Metadata enrichment
+    # Metadata enrichment
     for i, chunk in enumerate(chunks):
         chunk.metadata["source"] = filename
         chunk.metadata["page"] = int(chunk.metadata.get("page", 0))
@@ -403,7 +379,7 @@ def ingest_pdf(file_path: str, db) -> int:
         chunk.metadata["chunk_id"] = str(uuid.uuid4())
         chunk.metadata["chunk_seq"] = i
 
-    # STEP 7: Insert into vector DB (ChromaDB)
+    # Insert into vector DB (ChromaDB)
     try:
         db.add_documents(chunks)
         count = len(chunks)
