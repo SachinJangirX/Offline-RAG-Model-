@@ -1,6 +1,7 @@
 # 📊 Intelligent Document Analysis System (IDAS)
 
-*An offline-first, secure document intelligence platform for Q&A, report generation, and comparative analysis without internet connectivity.*
+*An offline, secure document intelligence platform for Q&A, report generation, and comparative analysis without internet connectivity.*
+*Built IDAS an offline, secure RAG-based platform enabling document Q&A, report generation, and multi-document comparative analysis using local LLMs (Gemma 1B). Designed for air-gapped environments, the system handles both text and scanned PDFs (with OCR support), incorporates prompt engineering for grounded responses, and uses cross-encoder reranking for improved retrieval accuracy. Developed as part of an internship, the system has been tested in restricted environments, highlighting real-world deployment constraints such as execution permissions and offline processing challenges.*
 
 ## 🎯 Overview
 
