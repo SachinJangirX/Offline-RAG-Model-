@@ -96,68 +96,18 @@ IDAS/
 ├── utils/
 ├── vector_store/
 └── README.md
-'''text
 
-Installation
-Clone Repository
+##Installation 
+
+###Clone Repository 
 git clone https://github.com/SachinJangirX/Intelligence-Document-Analysis-System-IDAS.git
 
-Move to Project Directory
+###Move to Project Directory
 cd Intelligence-Document-Analysis-System-IDAS
 
-Install Dependencies
+###Install Dependencies 
 pip install -r requirements.txt
 
-Run Application
+###Run Application 
 streamlit run app.py
 
-Security and Deployment Considerations
-
-The system was designed specifically for restricted environments.
-
-Key considerations during development:
-
-no internet dependency
-no cloud API usage
-local embedding generation
-local vector database storage
-offline execution support
-controlled document handling
-
-The project was deployed internally during internship work at the Army Design Bureau (ADB).
-
-Challenges Faced
-
-Some challenges during development included:
-
-handling large PDF files efficiently
-reducing irrelevant retrieval results
-selecting optimal chunk sizes
-improving response quality for long documents
-maintaining low query latency
-ensuring complete offline compatibility
-Learning Outcomes
-
-Through this project, I gained practical experience in:
-
-Retrieval-Augmented Generation (RAG)
-semantic search systems
-vector databases
-local LLM workflows
-document intelligence pipelines
-secure AI deployment environments
-debugging and optimization of NLP systems
-Future Improvements
-
-Possible future extensions:
-
-OCR support for scanned documents
-multilingual document analysis
-role-based access control
-citation tracking for generated responses
-GPU acceleration for faster inference
-support for additional file formats
-Author
-
-Sachin Jangir
-B.Tech Engineering Physics
